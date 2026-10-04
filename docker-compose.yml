@@ -1,0 +1,13 @@
+# Jour 2 : uniquement MongoDB. On ajoutera l'app, Airflow, etc. au Jour 9.
+services:
+  mongo:
+    image: docker.io/library/mongo:7
+    container_name: movie_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

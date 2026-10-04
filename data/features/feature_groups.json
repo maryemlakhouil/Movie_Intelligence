@@ -1,0 +1,60 @@
+{
+  "numeric": [
+    "release_year", 
+    "month_sin",
+    "month_cos",
+    "n_genres",
+    "n_keywords",
+    "runtime",
+    "budget_log",
+    "overview_word_count",
+    "overview_char_len",
+    "title_word_count" 
+  ],
+  "binary": [
+    "has_budget",
+    "is_english",
+    "has_overview",
+    "genre_Action",
+    "genre_Adventure",
+    "genre_Animation",
+    "genre_Comedy",
+    "genre_Crime",
+    "genre_Documentary",
+    "genre_Drama",
+    "genre_Family",
+    "genre_Fantasy",
+    "genre_History",
+    "genre_Horror",
+    "genre_Music",
+    "genre_Mystery",
+    "genre_Romance",
+    "genre_Science_Fiction",
+    "genre_TV_Movie",
+    "genre_Thriller",
+    "genre_War",
+    "genre_Western"
+  ],
+  "categorical": [
+    "runtime_category",
+    "original_language"
+  ],
+  "descriptive_only": [
+    "release_month",
+    "release_quarter",
+    "release_decade" 
+  ],
+  "text": [
+    "overview"
+  ],
+  "leakage_risk": [
+    "vote_count",
+    "vote_average",
+    "popularity",
+    "revenue"
+  ],
+  "identifiers": [
+    "movie_id",
+    "title"
+  ]
+}

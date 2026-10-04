@@ -1,0 +1,138 @@
+=== AVANT NETTOYAGE ===
+Dimensions : 2000 lignes x 14 colonnes
+
+--- Types et structure (df.info) ---
+<class 'pandas.DataFrame'>
+RangeIndex: 2000 entries, 0 to 1999
+Data columns (total 14 columns):
+ #   Column             Non-Null Count  Dtype  
+---  ------             --------------  -----  
+ 0   movie_id           2000 non-null   int64  
+ 1   title              2000 non-null   str    
+ 2   overview           2000 non-null   str    
+ 3   release_date       2000 non-null   str    
+ 4   runtime            2000 non-null   int64  
+ 5   original_language  2000 non-null   str    
+ 6   status             2000 non-null   str    
+ 7   genres             2000 non-null   object 
+ 8   keywords           2000 non-null   object 
+ 9   budget             2000 non-null   int64  
+ 10  revenue            2000 non-null   int64  
+ 11  popularity         2000 non-null   float64
+ 12  vote_average       2000 non-null   float64
+ 13  vote_count         2000 non-null   int64  
+dtypes: float64(2), int64(5), object(2), str(5)
+memory usage: 218.9+ KB
+
+--- Valeurs manquantes ---
+                   manquants  pourcentage
+movie_id                   0          0.0
+title                      0          0.0
+overview                   0          0.0
+release_date               0          0.0
+runtime                    0          0.0
+original_language          0          0.0
+status                     0          0.0
+genres                     0          0.0
+keywords                  36          1.8
+budget                     0          0.0
+revenue                    0          0.0
+popularity                 0          0.0
+vote_average               0          0.0
+vote_count                 0          0.0
+
+--- Statistiques numériques ---
+               count          mean           std    min          25%           50%           75%           max
+runtime       2000.0  1.139000e+02  2.343000e+01   0.00        99.00  1.100000e+02  1.260000e+02  2.540000e+02
+budget        2000.0  6.000923e+07  6.789350e+07   0.00  10000000.00  3.500000e+07  9.000000e+07  6.588000e+08
+revenue       2000.0  2.182950e+08  3.069443e+08   0.00  22816572.00  1.156239e+08  2.900791e+08  2.923706e+09
+popularity    2000.0  2.274000e+01  2.868000e+01   8.78        12.96  1.603000e+01  2.262000e+01  6.462600e+02
+vote_average  2000.0  6.930000e+00  7.900000e-01   3.80         6.41  6.950000e+00  7.460000e+00  9.160000e+00
+vote_count    2000.0  5.770520e+03  5.859650e+03  10.00      1734.75  4.119500e+03  7.712000e+03  4.130700e+04
+
+=== INCOHÉRENCES DÉTECTÉES (avant correction) ===
+movie_id dupliqués                                     : 0
+(title, release_date) dupliqués                        : 0
+budget = 0 (valeur bidon)                              : 282
+budget entre 1 et 999 (erreur de saisie)               : 1
+revenue = 0 (valeur bidon)                             : 267
+revenue entre 1 et 999 (erreur de saisie)              : 2
+runtime = 0 ou négatif                                 : 3
+runtime > 300 min (suspect)                            : 0
+vote_count = 0 mais vote_average > 0                   : 0
+vote_average hors [0, 10]                              : 0
+popularity négative                                    : 0
+date illisible                                         : 0
+date dans le futur                                     : 0
+status différent de 'Released'                         : 0
+
+=== JOURNAL DU NETTOYAGE ===
+lignes sans id/titre supprimées                        : 0
+doublons movie_id supprimés                            : 0
+doublons (title, release_date) supprimés               : 0
+budget mis à NaN (< 1000)                              : 283
+revenue mis à NaN (< 1000)                             : 269
+runtime mis à NaN (<= 0)                               : 3
+vote_average mis à NaN (0 vote)                        : 0
+films non 'Released' supprimés                         : 0
+lignes finales                                         : 2000
+
+=== APRÈS NETTOYAGE ===
+Dimensions : 2000 lignes x 14 colonnes
+
+--- Types et structure (df.info) ---
+<class 'pandas.DataFrame'>
+RangeIndex: 2000 entries, 0 to 1999
+Data columns (total 14 columns):
+ #   Column             Non-Null Count  Dtype         
+---  ------             --------------  -----         
+ 0   movie_id           2000 non-null   int64         
+ 1   title              2000 non-null   object        
+ 2   overview           2000 non-null   object        
+ 3   release_date       2000 non-null   datetime64[us]
+ 4   runtime            1997 non-null   float64       
+ 5   original_language  2000 non-null   object        
+ 6   status             2000 non-null   object        
+ 7   genres             2000 non-null   object        
+ 8   keywords           2000 non-null   object        
+ 9   budget             1717 non-null   float64       
+ 10  revenue            1731 non-null   float64       
+ 11  popularity         2000 non-null   float64       
+ 12  vote_average       2000 non-null   float64       
+ 13  vote_count         2000 non-null   int64         
+dtypes: datetime64[us](1), float64(5), int64(2), object(6)
+memory usage: 218.9+ KB
+
+--- Valeurs manquantes ---
+                   manquants  pourcentage
+movie_id                   0          0.0
+title                      0          0.0
+overview                   0          0.0
+release_date               0          0.0
+runtime                    3          0.2
+original_language          0          0.0
+status                     0          0.0
+genres                     0          0.0
+keywords                  36          1.8
+budget                   283         14.2
+revenue                  269         13.4
+popularity                 0          0.0
+vote_average               0          0.0
+vote_count                 0          0.0
+
+--- Statistiques numériques ---
+               count          mean           std       min          25%           50%           75%           max
+runtime       1997.0  1.140700e+02  2.303000e+01     22.00        99.00  1.110000e+02  1.260000e+02  2.540000e+02
+budget        1717.0  6.990009e+07  6.839553e+07  70000.00  19000000.00  4.800000e+07  1.000000e+08  6.588000e+08
+revenue       1731.0  2.522184e+08  3.167070e+08   1281.00  50226355.50  1.492000e+08  3.320429e+08  2.923706e+09
+popularity    2000.0  2.274000e+01  2.868000e+01      8.78        12.96  1.603000e+01  2.262000e+01  6.462600e+02
+vote_average  2000.0  6.930000e+00  7.900000e-01      3.80         6.41  6.950000e+00  7.460000e+00  9.160000e+00
+vote_count    2000.0  5.770520e+03  5.859650e+03     10.00      1734.75  4.119500e+03  7.712000e+03  4.130700e+04
+
+=== TYPOLOGIE DES VARIABLES ===
+id          : ['movie_id']
+numeric     : ['runtime', 'budget', 'revenue', 'popularity', 'vote_average', 'vote_count']
+categorical : ['original_language', 'status']
+text        : ['title', 'overview']
+date        : ['release_date']
+list        : ['genres', 'keywords']

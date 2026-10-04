@@ -1,0 +1,28 @@
+{
+  "id": [
+    "movie_id"
+  ],
+  "numeric": [
+    "runtime",
+    "budget",
+    "revenue",
+    "popularity",
+    "vote_average",
+    "vote_count"
+  ],
+  "categorical": [
+    "original_language",
+    "status"
+  ],
+  "text": [
+    "title",
+    "overview"
+  ],
+  "date": [
+    "release_date"
+  ],
+  "list": [
+    "genres",
+    "keywords"
+  ]
+}
