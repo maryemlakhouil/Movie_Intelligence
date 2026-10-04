@@ -5,6 +5,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 files = list((PROJECT_ROOT / "data" / "raw" / "movies").glob("*.json"))  #glob Trouver tous les fichiers .json.
+
 n = len(files)
 print(f"Films téléchargés : {n}")
 if n == 0:
