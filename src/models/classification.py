@@ -1,22 +1,11 @@
 """
-Jour 5 - Classification : prédire `high_engagement`.
-
-    data/features/movies_features.csv + movies_text.csv
-        -> models/classifier_day5.joblib, models/classification_meta.json
-        -> reports/classification_results.csv, classification_report.md
-        -> reports/figures/15_, 16_, 17_*.png
-
-Usage :
-    python src/models/classification.py
-    python src/models/classification.py --threshold 7700     # variante "75e centile"
-    python src/models/classification.py --no-leakage-demo
+ROC-AUC    est un score de 0,5 (hasard) à 1 (parfait) 
+           qui indique à quel point le modèle classe correctement 
 
 RÈGLES ANTI-LEAKAGE
 -------------------
-1. La cible est construite à partir de `vote_count` (seuil FIXE, fixé avant le split).
-   `vote_count` n'est JAMAIS une feature (assert_no_leakage le vérifie).
-2. vote_average, popularity et revenue (proxys de l'engagement) sont écartés. Une expérience
-   dédiée montre ce qui se passe si on les ajoute.
+1. : la cible vient de vote_count, donc vote_count ne peut pas être une feature 
+2. vote_average, popularity et revenue (proxys) indice qui remplace indirectement y 
 3. Imputation, mise à l'échelle, encodage et TF-IDF sont DANS le Pipeline : ils sont ajustés
    sur le train uniquement (fit) puis appliqués au test (transform).
 """
@@ -25,13 +14,12 @@ import json
 import logging
 import sys
 from pathlib import Path
-
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
-from sklearn.dummy import DummyClassifier
+from sklearn.dummy import DummyClassifier #reference
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
@@ -44,8 +32,8 @@ from sklearn.svm import LinearSVC
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
-from src.features.build_features import GROUPS_JSON, LEAKAGE_RISK, feature_groups, load_features  # noqa: E402
-from src.nlp.tfidf import TEXT_CSV, make_vectorizer  # noqa: E402
+from src.features.build_features import GROUPS_JSON, LEAKAGE_RISK, feature_groups, load_features  
+from src.nlp.tfidf import TEXT_CSV, make_vectorizer  
 
 MODELS_DIR = PROJECT_ROOT / "models"
 REPORTS_DIR = PROJECT_ROOT / "reports"
@@ -56,10 +44,11 @@ RESULTS_CSV = REPORTS_DIR / "classification_results.csv"
 REPORT_MD = REPORTS_DIR / "classification_report.md"
 
 TARGET, TARGET_SOURCE = "high_engagement", "vote_count"
-THRESHOLD = 4000          # seuil fixe, proche de la médiane observée (4 120 votes)
+# seuil fixe, proche de la médiane observée (4 120 votes)
+THRESHOLD = 4000      
 TEXT_COL = "overview_clean"
 TEST_SIZE, RANDOM_STATE = 0.2, 42
-PROXY_FEATURES = ["popularity_log", "vote_average", "revenue_log"]   # uniquement pour la démo de leakage
+PROXY_FEATURES = ["popularity_log", "vote_average", "revenue_log"]  
 
 logger = logging.getLogger("classification")
 
@@ -68,7 +57,6 @@ logger = logging.getLogger("classification")
 # 1. Données et cible
 # --------------------------------------------------------------------------
 def make_target(df: pd.DataFrame, threshold: int = THRESHOLD) -> pd.Series:
-    """1 si le film a au moins `threshold` votes, sinon 0."""
     return (df[TARGET_SOURCE] >= threshold).astype(int).rename(TARGET)
 
 
