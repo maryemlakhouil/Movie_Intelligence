@@ -53,31 +53,29 @@ PROXY_FEATURES = ["popularity_log", "vote_average", "revenue_log"]
 logger = logging.getLogger("classification")
 
 
-# --------------------------------------------------------------------------
 # 1. Données et cible
-# --------------------------------------------------------------------------
+
 def make_target(df: pd.DataFrame, threshold: int = THRESHOLD) -> pd.Series:
     return (df[TARGET_SOURCE] >= threshold).astype(int).rename(TARGET)
 
 
 def assert_no_leakage(feature_cols, allow: bool = False) -> None:
-    """Lève une erreur si une feature interdite (cible, source de la cible, proxys) est utilisée."""
-    if allow:
+    if allow:# verifie les colonnes (arreter)
         return
-    forbidden = set(LEAKAGE_RISK) | {TARGET, TARGET_SOURCE}
-    bad = [c for c in feature_cols if c in forbidden or any(c.startswith(f + "_") for f in forbidden)]
+    interdit = set(LEAKAGE_RISK) | {TARGET, TARGET_SOURCE}
+    bad = [c for c in feature_cols if c in interdit or any(c.startswith(f + "_") for f in interdit)]
     if bad:
         raise ValueError(f"Data Leakage : colonnes interdites parmi les features -> {bad}")
 
+# dataset final utilisé pour la classification
 
 def load_dataset(threshold: int = THRESHOLD) -> pd.DataFrame:
     df = load_features()
     text = pd.read_csv(TEXT_CSV)[["movie_id", TEXT_COL]]
     df = df.merge(text, on="movie_id", how="left")
-    df[TEXT_COL] = df[TEXT_COL].fillna("")                    # nettoyage sans état : pas de fuite
+    df[TEXT_COL] = df[TEXT_COL].fillna("")                 
     df = df.dropna(subset=[TARGET_SOURCE]).reset_index(drop=True)
     df[TARGET] = make_target(df, threshold)
-    # colonnes utilisées uniquement par la démo de leakage
     df["popularity_log"] = np.log1p(df["popularity"])
     df["revenue_log"] = np.log1p(df["revenue"])
     return df
@@ -86,14 +84,13 @@ def load_dataset(threshold: int = THRESHOLD) -> pd.DataFrame:
 def get_feature_groups(df: pd.DataFrame) -> dict:
     if GROUPS_JSON.exists():
         g = json.loads(GROUPS_JSON.read_text(encoding="utf-8"))
-    else:  # filet de sécurité : recalcul depuis les colonnes
+    else:  
         g = feature_groups(df)
     return {k: [c for c in g[k] if c in df.columns] for k in ("numeric", "binary", "categorical")}
 
 
-# --------------------------------------------------------------------------
 # 2. Pipeline : ColumnTransformer + modèle
-# --------------------------------------------------------------------------
+
 def build_preprocessor(groups: dict, max_features: int = 3000, ngram_range=(1, 2)) -> ColumnTransformer:
     return ColumnTransformer(
         [
@@ -101,7 +98,7 @@ def build_preprocessor(groups: dict, max_features: int = 3000, ngram_range=(1, 2
                               ("sc", StandardScaler())]), groups["numeric"]),
             ("bin", "passthrough", groups["binary"]),
             ("cat", Pipeline([("imp", SimpleImputer(strategy="most_frequent")),
-                              ("oh", OneHotEncoder(handle_unknown="ignore", min_frequency=10))]),
+                              ("oh", OneHotEncoder(handle_unknown="ignore", min_frequency=10))]),   #fr,en,ja
              groups["categorical"]),
             ("text", make_vectorizer(max_features, ngram_range), TEXT_COL),
         ]
@@ -109,7 +106,7 @@ def build_preprocessor(groups: dict, max_features: int = 3000, ngram_range=(1, 2
 
 
 def get_models() -> dict:
-    return {
+    return {                                                                # cls minoritaire
         "Logistic Regression": LogisticRegression(max_iter=2000, class_weight="balanced", random_state=RANDOM_STATE),
         "Random Forest": RandomForestClassifier(n_estimators=300, class_weight="balanced",
                                                 random_state=RANDOM_STATE, n_jobs=-1),
