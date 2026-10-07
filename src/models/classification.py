@@ -117,15 +117,12 @@ def get_models() -> dict:
 def build_pipeline(model, groups: dict) -> Pipeline:
     return Pipeline([("prep", build_preprocessor(groups)), ("clf", model)])
 
+# 3. Évaluation 
 
-# --------------------------------------------------------------------------
-# 3. Évaluation
-# --------------------------------------------------------------------------
 def get_scores(pipe, X) -> np.ndarray:
-    """Score continu pour le ROC-AUC : probabilité si disponible, sinon distance à l'hyperplan (SVM)."""
     if hasattr(pipe, "predict_proba"):
         return pipe.predict_proba(X)[:, 1]
-    return pipe.decision_function(X)
+    return pipe.decision_function(X) #svm(+c1 -c0)
 
 
 def evaluate(pipe, X, y) -> dict:
@@ -140,25 +137,23 @@ def evaluate(pipe, X, y) -> dict:
 
 
 def run_models(X_train, X_test, y_train, y_test, groups: dict, with_baseline: bool = True):
-    """Entraîne et évalue chaque modèle. Retourne (tableau de résultats, pipelines, prédictions)."""
     models = get_models()
     if with_baseline:
         models = {"Baseline (classe majoritaire)": DummyClassifier(strategy="most_frequent"), **models}
-    rows, fitted, preds = [], {}, {}
+    rows, fitted, preds = [], {}, {} #model entrainee 
     for name, model in models.items():
         pipe = build_pipeline(model, groups)
         pipe.fit(X_train, y_train)
-        res = evaluate(pipe, X_test, y_test)
+        res = evaluate(pipe, X_test, y_test) 
         res["train_accuracy"] = accuracy_score(y_train, pipe.predict(X_train))
-        rows.append({"model": name, **res})
+        rows.append({"model": name, **res}) #** cle valeur 
         fitted[name], preds[name] = pipe, pipe.predict(X_test)
         logger.info("%-30s acc=%.3f f1=%.3f auc=%.3f", name, res["accuracy"], res["f1"], res["roc_auc"])
     return pd.DataFrame(rows).round(4), fitted, preds
 
 
-# --------------------------------------------------------------------------
 # 4. Graphiques
-# --------------------------------------------------------------------------
+
 def _finish(fig, name: str, show: bool) -> None:
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
