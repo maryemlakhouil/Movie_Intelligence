@@ -58,14 +58,16 @@ def main(threshold: int, model_name: str, n_folds: int) -> None:
     print(cv_table.to_string(index=False))
 
     # --- 2. GridSearchCV sur un modèle -------------------------------------
+
     pipe = build_pipeline(get_models()[model_name], groups)
     grid = GridSearchCV(pipe, GRIDS[model_name], cv=cv, scoring="roc_auc", n_jobs=-1)
-    grid.fit(X_train, y_train)                      # refit automatique du meilleur sur tout le train
+    grid.fit(X_train, y_train)                     
     print(f"\n=== GridSearchCV : {model_name} ===")
     print("Meilleurs paramètres :", grid.best_params_)
 
     # --- 3. Avant / après, sur le test --------------------------------------
-    pipe.fit(X_train, y_train)                      # version par défaut
+
+    pipe.fit(X_train, y_train)               # version par défaut
     before, after = evaluate(pipe, X_test, y_test), evaluate(grid.best_estimator_, X_test, y_test)
     compare = pd.DataFrame({
         "version": ["Avant (paramètres par défaut)", "Après (GridSearchCV)"],
@@ -78,6 +80,7 @@ def main(threshold: int, model_name: str, n_folds: int) -> None:
     print(compare.to_string(index=False))
 
     # --- Sauvegardes --------------------------------------------------------
+    
     REPORTS_DIR.mkdir(exist_ok=True)
     MODELS_DIR.mkdir(exist_ok=True)
     cv_table.to_csv(REPORTS_DIR / "cv_results.csv", index=False)
