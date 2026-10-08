@@ -41,7 +41,6 @@ FIG_DIR = REPORTS_DIR / "figures"
 MODEL_PATH = MODELS_DIR / "classifier_day5.joblib"
 META_PATH = MODELS_DIR / "classification_meta.json"
 RESULTS_CSV = REPORTS_DIR / "classification_results.csv"
-REPORT_MD = REPORTS_DIR / "classification_report.md"
 
 TARGET, TARGET_SOURCE = "high_engagement", "vote_count"
 # seuil fixe, proche de la médiane observée (4 120 votes)
@@ -160,13 +159,13 @@ def _finish(fig, name: str, show: bool) -> None:
     fig.savefig(FIG_DIR / f"{name}.png", dpi=150)
     plt.show() if show else plt.close(fig)
 
+# affiche matrice de confusions : 
 
 def plot_confusions(preds: dict, y_test, show=False) -> None:
-    names = [n for n in preds if not n.startswith("Baseline")]
+    names = [n for n in preds if not n.startswith("Baseline")] 
     fig, axes = plt.subplots(1, len(names), figsize=(4.6 * len(names), 4.2))
     for ax, n in zip(np.atleast_1d(axes), names):
-        ConfusionMatrixDisplay.from_predictions(y_test, preds[n], ax=ax, colorbar=False, cmap="Blues",
-                                                display_labels=["faible", "fort"])
+        ConfusionMatrixDisplay.from_predictions(y_test, preds[n], ax=ax, colorbar=False, cmap="Blues",display_labels=["faible", "fort"])
         ax.set_title(n)
         ax.grid(False)
     _finish(fig, "15_confusion_matrices", show)
@@ -183,25 +182,27 @@ def plot_roc(fitted: dict, X_test, y_test, show=False) -> None:
     ax.legend(loc="lower right")
     _finish(fig, "16_roc_curves", show)
 
-
+# num__runtime -> runtime
 def _clean_name(n: str) -> str:
     for p in ("num__", "bin__", "cat__", "text__"):
         n = n.replace(p, "") if n.startswith(p) else n
     return n
 
-
+# regression logistic variables influencent le plus la décision du modèle 
+# ravel ->2d en un seul dimention 
 def top_coefficients(pipe, n: int = 12) -> pd.Series:
     names = [_clean_name(x) for x in pipe.named_steps["prep"].get_feature_names_out()]
     coef = pd.Series(pipe.named_steps["clf"].coef_.ravel(), index=names)
     s = coef.sort_values()
     return pd.concat([s.head(n), s.tail(n)])
 
+# random forest   
 
 def top_importances(pipe, n: int = 15) -> pd.Series:
     names = [_clean_name(x) for x in pipe.named_steps["prep"].get_feature_names_out()]
     return pd.Series(pipe.named_steps["clf"].feature_importances_, index=names).sort_values().tail(n)
 
-
+# 
 def plot_importances(fitted: dict, show=False) -> None:
     lr, rf = fitted["Logistic Regression"], fitted["Random Forest"]
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -214,73 +215,8 @@ def plot_importances(fitted: dict, show=False) -> None:
     _finish(fig, "17_feature_importance", show)
 
 
-# --------------------------------------------------------------------------
-# 5. Rapport
-# --------------------------------------------------------------------------
-def md_table(df: pd.DataFrame) -> str:
-    cols = list(df.columns)
-    out = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
-    out += ["| " + " | ".join(str(v) for v in r) + " |" for _, r in df.iterrows()]
-    return "\n".join(out)
-
-
-def write_report(info: dict) -> None:
-    res = info["results"]
-    models = res[~res["model"].str.startswith("Baseline")].set_index("model")
-    base = res[res["model"].str.startswith("Baseline")]
-    best = models["roc_auc"].idxmax()
-    L = ["# Rapport de classification (Jour 5)", "",
-         "## 1. Cible", "",
-         f"`{TARGET}` = 1 si `{TARGET_SOURCE}` >= {info['threshold']}. Seuil fixe, défini avant le split (pas recalculé sur le train/test).",
-         f"- Films : {info['n']} | positifs : {info['pos_pct']:.1f} % | train : {info['n_train']} | test : {info['n_test']} (split stratifié)",
-         f"- Features : {len(info['groups']['numeric'])} numériques, {len(info['groups']['binary'])} binaires, "
-         f"{len(info['groups']['categorical'])} catégorielles + TF-IDF de `{TEXT_COL}`. `{TARGET_SOURCE}`, `popularity`, `vote_average`, `revenue` exclues.", "",
-         "## 2. Résultats sur le jeu de test", "", md_table(res), ""]
-    L += ["**Lecture :**",
-          f"- Meilleur modèle selon le ROC-AUC : **{best}** (AUC {models.loc[best, 'roc_auc']:.3f}, F1 {models.loc[best, 'f1']:.3f}, accuracy {models.loc[best, 'accuracy']:.3f})."]
-    if len(base):
-        gain = models.loc[best, "accuracy"] - base["accuracy"].iloc[0]
-        L.append(f"- La baseline (toujours la classe majoritaire) obtient {base['accuracy'].iloc[0]:.3f} d'accuracy : "
-                 f"le meilleur modèle {'gagne' if gain > 0 else 'perd'} {abs(gain) * 100:.1f} points de pourcentage.")
-    for n, r in models.iterrows():
-        gap = r["train_accuracy"] - r["accuracy"]
-        if gap > 0.10:
-            L.append(f"- **{n}** : accuracy train {r['train_accuracy']:.3f} contre test {r['accuracy']:.3f} (écart {gap:.2f}) : signe de surapprentissage.")
-    tn, fp, fn, tp = confusion_matrix(info["y_test"], info["preds"][best]).ravel()
-    L.append(f"- Matrice de confusion de {best} : {tp} vrais positifs, {tn} vrais négatifs, {fp} faux positifs, {fn} faux négatifs. "
-             + ("Il se trompe plus souvent en annonçant un fort engagement à tort (précision < rappel)."
-                if models.loc[best, "precision"] < models.loc[best, "recall"] else
-                "Il rate plus de films à fort engagement qu'il n'en annonce à tort (rappel < précision)."
-                if models.loc[best, "recall"] < models.loc[best, "precision"] else "Précision et rappel sont équilibrés."))
-    L += ["- Un seul découpage train/test donne une estimation bruitée : la validation croisée du Jour 6 la consolidera.", ""]
-
-    if info.get("leak") is not None:
-        lk = info["leak"].set_index("model")
-        L += ["## 3. Démonstration de Data Leakage", "",
-              "Même pipeline, mais en ajoutant `popularity`, `vote_average` et `revenue` aux features :", ""]
-        cmp_ = pd.DataFrame({
-            "modèle": models.index,
-            "AUC sans proxys": models["roc_auc"].values,
-            "AUC avec proxys": lk.loc[models.index, "roc_auc"].values,
-            "F1 sans proxys": models["f1"].values,
-            "F1 avec proxys": lk.loc[models.index, "f1"].values,
-        })
-        cmp_["gain AUC"] = (cmp_["AUC avec proxys"] - cmp_["AUC sans proxys"]).round(4)
-        L += [md_table(cmp_.round(4)), ""]
-        g = cmp_["gain AUC"].mean()
-        L += [f"Gain moyen d'AUC : {g:+.3f}. " + (
-              "Le saut est net : ces variables contiennent déjà l'information sur le nombre de votes, le score devient artificiellement bon "
-              "et ne reflète plus la capacité à prédire l'engagement à partir du contenu du film. Elles sont donc exclues du modèle final."
-              if g > 0.03 else
-              "Le gain est faible sur ces données, mais ces variables restent conceptuellement des proxys de la cible (conséquences de l'engagement) et sont écartées par principe."), ""]
-    L += ["## 4. Variables influentes", "", "Voir `reports/figures/17_feature_importance.png` (coefficients de la régression logistique et importances du Random Forest).", ""]
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    REPORT_MD.write_text("\n".join(L) + "\n", encoding="utf-8")
-
-
-# --------------------------------------------------------------------------
 # 6. Orchestration
-# --------------------------------------------------------------------------
+
 def run_classification(threshold: int = THRESHOLD, leakage_demo: bool = True, show: bool = False) -> dict:
     df = load_dataset(threshold)
     groups = get_feature_groups(df)
@@ -288,8 +224,7 @@ def run_classification(threshold: int = THRESHOLD, leakage_demo: bool = True, sh
     assert_no_leakage(feature_cols)
 
     X, y = df[feature_cols], df[TARGET]
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, stratify=y, random_state=RANDOM_STATE)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=TEST_SIZE, stratify=y, random_state=RANDOM_STATE)
     logger.info("Train %d | Test %d | positifs %.1f %%", len(X_train), len(X_test), y.mean() * 100)
 
     results, fitted, preds = run_models(X_train, X_test, y_train, y_test, groups)
@@ -322,7 +257,6 @@ def run_classification(threshold: int = THRESHOLD, leakage_demo: bool = True, sh
             "n_test": len(X_test), "groups": groups, "results": results, "leak": leak,
             "preds": preds, "y_test": y_test, "fitted": fitted, "best": best,
             "X_test": X_test}
-    write_report(info)
     return info
 
 
@@ -338,4 +272,4 @@ if __name__ == "__main__":
     if out["leak"] is not None:
         print("\n--- AVEC les proxys (démonstration de leakage) ---")
         print(out["leak"][["model", "accuracy", "f1", "roc_auc"]].to_string(index=False))
-    print(f"\nMeilleur modèle : {out['best']}\nRapport : {REPORT_MD}\nModèle : {MODEL_PATH}")
+    print(f"\nMeilleur modèle : {out['best']}\nModèle : {MODEL_PATH}")
