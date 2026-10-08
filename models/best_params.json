@@ -1,0 +1,8 @@
+{
+  "model": "Random Forest",
+  "params": {
+    "clf__max_depth": null,
+    "clf__min_samples_leaf": 1
+  },
+  "threshold": 4000
+}

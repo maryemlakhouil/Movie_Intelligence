@@ -37,7 +37,7 @@ GRIDS = {
 }
 
 
-def main(threshold: int, model_name: str, n_folds: int) -> None:
+def main(threshold: int, model_name: str | None, n_folds: int) -> None:
 
     df = load_dataset(threshold)
     groups = get_feature_groups(df)
@@ -57,8 +57,10 @@ def main(threshold: int, model_name: str, n_folds: int) -> None:
     print(f"\n=== Validation croisée ({n_folds} plis, moyenne ± écart-type) ===")
     print(cv_table.to_string(index=False))
 
-    # --- 2. GridSearchCV sur un modèle -------------------------------------
-
+    # --- 2. GridSearchCV sur un modèle (par défaut : le meilleur en validation croisée) ---
+    if model_name is None:
+        model_name = max(fold_auc, key=lambda n: fold_auc[n].mean())
+        print(f"\nModèle optimisé : {model_name} (meilleur ROC-AUC en validation croisée)")
     pipe = build_pipeline(get_models()[model_name], groups)
     grid = GridSearchCV(pipe, GRIDS[model_name], cv=cv, scoring="roc_auc", n_jobs=-1)
     grid.fit(X_train, y_train)                     
@@ -80,7 +82,7 @@ def main(threshold: int, model_name: str, n_folds: int) -> None:
     print(compare.to_string(index=False))
 
     # --- Sauvegardes --------------------------------------------------------
-    
+
     REPORTS_DIR.mkdir(exist_ok=True)
     MODELS_DIR.mkdir(exist_ok=True)
     cv_table.to_csv(REPORTS_DIR / "cv_results.csv", index=False)
@@ -103,7 +105,7 @@ if __name__ == "__main__":
     plt.switch_backend("Agg")
     ap = argparse.ArgumentParser()
     ap.add_argument("--threshold", type=int, default=THRESHOLD)
-    ap.add_argument("--model", default="Logistic Regression", choices=list(GRIDS))
+    ap.add_argument("--model", default=None, choices=list(GRIDS))   # None = meilleur modèle en CV
     ap.add_argument("--folds", type=int, default=5)
     a = ap.parse_args()
     main(a.threshold, a.model, a.folds)

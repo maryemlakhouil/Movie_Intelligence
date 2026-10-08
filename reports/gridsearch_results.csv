@@ -1,7 +1,7 @@
 params,mean_test_score,std_test_score,rank_test_score
-"{'clf__C': 0.1, 'prep__text__ngram_range': (1, 1)}",0.824218824096544,0.017377014730396864,1
-"{'clf__C': 0.1, 'prep__text__ngram_range': (1, 2)}",0.8241484868686124,0.017098743889935236,2
-"{'clf__C': 1, 'prep__text__ngram_range': (1, 1)}",0.8235938052946177,0.014961540596704742,3
-"{'clf__C': 1, 'prep__text__ngram_range': (1, 2)}",0.823296838717704,0.01372028166227678,4
-"{'clf__C': 10, 'prep__text__ngram_range': (1, 1)}",0.7985798982839911,0.014030970368415531,5
-"{'clf__C': 10, 'prep__text__ngram_range': (1, 2)}",0.7967976348074606,0.012392281415136729,6
+"{'clf__max_depth': None, 'clf__min_samples_leaf': 1}",0.8687795816467198,0.021464223071242145,1
+"{'clf__max_depth': None, 'clf__min_samples_leaf': 3}",0.8642494888625268,0.02280589055859883,2
+"{'clf__max_depth': 20, 'clf__min_samples_leaf': 1}",0.862232442935191,0.02564149616420835,3
+"{'clf__max_depth': 20, 'clf__min_samples_leaf': 3}",0.8612008345354958,0.021679624285610558,4
+"{'clf__max_depth': 10, 'clf__min_samples_leaf': 3}",0.8564793195060147,0.02139944998747866,5
+"{'clf__max_depth': 10, 'clf__min_samples_leaf': 1}",0.8552209919479734,0.021784575012974143,6
