@@ -1,9 +1,3 @@
-"""
-Usage :
-    python src/extraction/extract_tmdb.py --n-movies 2000
-    argparse : t9dar tjib parmetre de donnes ghir terminal  exemple --movies : 2000 
-    logging afficher les messages de erreur ,information 
-"""
 import json
 import logging
 import os
@@ -13,7 +7,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter # connection http 
-from urllib3.util.retry import Retry    # Configurer les tentatives automatiques si une requête échoue
+from urllib3.util.retry import Retry    
 
 
 # Racine du projet (movie-recommender/), quel que soit le dossier de lancement
@@ -24,7 +18,7 @@ BASE_URL = "https://api.themoviedb.org/3"
 RAW_DIR = Path(os.getenv("RAW_DIR", PROJECT_ROOT / "data" / "raw"))
 DISCOVER_DIR = RAW_DIR / "discover"
 MOVIES_DIR = RAW_DIR / "movies"
-MAX_PAGES = 500  # limite imposée par TMDB sur /discover
+MAX_PAGES = 500  
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,10 +51,10 @@ class TMDBClient:
         # Trop de requêtes , erreur serveur ,mauvais reponce , serice indisponible , Timeout  serveur/proxy
         retry = Retry(
             total=5,
-            backoff_factor=1,   #kola mara katsana secende 1 zayda 1s → 2s → 4s → ...
+            backoff_factor=1,   
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["GET"],
-            respect_retry_after_header=True,  # Attendez 10 secondes avant de réessayer. rescept 
+            respect_retry_after_header=True,  # Attendez 10 secondes avant de réessayer
         )
         self.session.mount("https://", HTTPAdapter(max_retries=retry))
 
@@ -171,15 +165,13 @@ def fetch_movie_details(client: TMDBClient, movie_id: int) -> bool:
         return True
     return False
 
+# Télécharge jusqu'à n_movies films
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Extraction TMDB")
-    parser.add_argument("--n-movies", type=int, default=2000)
-    args = parser.parse_args()
+def run_extraction(n_movies: int) -> tuple[int, list[int]]:
 
     client = TMDBClient()
-    ids = discover_movie_ids(client, args.n_movies)
-    #Compteurs 
+    ids = discover_movie_ids(client, n_movies)
+
     ok, failed = 0, []
     for i, movie_id in enumerate(ids, start=1):
         if fetch_movie_details(client, movie_id):
@@ -187,12 +179,17 @@ def main() -> None:
         else:
             failed.append(movie_id)
         if i % 100 == 0:
-            logger.info("Progression : %d/%d", i, len(ids)) # 100/2000 
+            logger.info("Progression : %d/%d", i, len(ids))
 
     logger.info("Terminé : %d films OK, %d échecs", ok, len(failed))
     if failed:
         logger.warning("IDs en échec : %s", failed)
+    return ok, failed
 
-
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Extraction TMDB")
+    parser.add_argument("--n-movies", type=int, default=2000)
+    run_extraction(parser.parse_args().n_movies)
+ 
 if __name__ == "__main__":
     main()
