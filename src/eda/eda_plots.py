@@ -1,17 +1,3 @@
-"""
-Jour 3 - Analyse exploratoire (EDA) : graphiques + interprétations.
-
-    data/processed/movies_clean.csv -> reports/figures/*.png
-                                    -> reports/eda_interpretations.md
-
-Usage :
-    python src/eda/eda_plots.py
-
-Chaque fonction plot_xxx(df) dessine UN graphique, le sauvegarde en PNG et retourne
-une interprétation rédigée à partir des chiffres réels du jeu de données.
-Ces textes sont un point de départ : relisez-les devant le graphique et reformulez
-avec vos propres mots dans le rapport.
-"""
 import sys
 from pathlib import Path
 
@@ -31,9 +17,8 @@ BLUE, ORANGE = "#3b6ea5", "#e08e45"
 sns.set_theme(style="whitegrid", context="notebook")
 
 
-# --------------------------------------------------------------------------
 # Utilitaires
-# --------------------------------------------------------------------------
+
 def _finish(fig, name: str, show: bool) -> None:
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
@@ -62,9 +47,8 @@ def _exploded_genres(df: pd.DataFrame) -> pd.DataFrame:
     return df.explode("genres").dropna(subset=["genres"])
 
 
-# --------------------------------------------------------------------------
 # Graphiques
-# --------------------------------------------------------------------------
+
 def plot_missing(df, show=False):
     miss = missing_summary(df)["pourcentage"].sort_values(ascending=True)
     fig, ax = plt.subplots(figsize=(7, 5))
