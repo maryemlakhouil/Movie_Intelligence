@@ -2,18 +2,20 @@
 Dimensions : 2000 lignes x 14 colonnes
 
 --- Types et structure (df.info) ---
-<class 'pandas.DataFrame'>
+
+<class 'pandas.core.frame.DataFrame'>
 RangeIndex: 2000 entries, 0 to 1999
+
 Data columns (total 14 columns):
  #   Column             Non-Null Count  Dtype  
 ---  ------             --------------  -----  
  0   movie_id           2000 non-null   int64  
- 1   title              2000 non-null   str    
- 2   overview           2000 non-null   str    
- 3   release_date       2000 non-null   str    
+ 1   title              2000 non-null   object 
+ 2   overview           2000 non-null   object 
+ 3   release_date       2000 non-null   object 
  4   runtime            2000 non-null   int64  
- 5   original_language  2000 non-null   str    
- 6   status             2000 non-null   str    
+ 5   original_language  2000 non-null   object 
+ 6   status             2000 non-null   object 
  7   genres             2000 non-null   object 
  8   keywords           2000 non-null   object 
  9   budget             2000 non-null   int64  
@@ -21,10 +23,11 @@ Data columns (total 14 columns):
  11  popularity         2000 non-null   float64
  12  vote_average       2000 non-null   float64
  13  vote_count         2000 non-null   int64  
-dtypes: float64(2), int64(5), object(2), str(5)
+dtypes: float64(2), int64(5), object(7)
 memory usage: 218.9+ KB
 
 --- Valeurs manquantes ---
+
                    manquants  pourcentage
 movie_id                   0          0.0
 title                      0          0.0
@@ -51,6 +54,7 @@ vote_average  2000.0  6.930000e+00  7.900000e-01   3.80         6.41  6.950000e+
 vote_count    2000.0  5.770520e+03  5.859650e+03  10.00      1734.75  4.119500e+03  7.712000e+03  4.130700e+04
 
 === INCOHÉRENCES DÉTECTÉES (avant correction) ===
+
 movie_id dupliqués                                     : 0
 (title, release_date) dupliqués                        : 0
 budget = 0 (valeur bidon)                              : 282
@@ -81,7 +85,7 @@ lignes finales                                         : 2000
 Dimensions : 2000 lignes x 14 colonnes
 
 --- Types et structure (df.info) ---
-<class 'pandas.DataFrame'>
+<class 'pandas.core.frame.DataFrame'>
 RangeIndex: 2000 entries, 0 to 1999
 Data columns (total 14 columns):
  #   Column             Non-Null Count  Dtype         
@@ -89,7 +93,7 @@ Data columns (total 14 columns):
  0   movie_id           2000 non-null   int64         
  1   title              2000 non-null   object        
  2   overview           2000 non-null   object        
- 3   release_date       2000 non-null   datetime64[us]
+ 3   release_date       2000 non-null   datetime64[ns]
  4   runtime            1997 non-null   float64       
  5   original_language  2000 non-null   object        
  6   status             2000 non-null   object        
@@ -100,7 +104,7 @@ Data columns (total 14 columns):
  11  popularity         2000 non-null   float64       
  12  vote_average       2000 non-null   float64       
  13  vote_count         2000 non-null   int64         
-dtypes: datetime64[us](1), float64(5), int64(2), object(6)
+dtypes: datetime64[ns](1), float64(5), int64(2), object(6)
 memory usage: 218.9+ KB
 
 --- Valeurs manquantes ---

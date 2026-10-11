@@ -1,22 +1,7 @@
-"""
-Jour 2 - Nettoyage des données brutes TMDB avec Pandas.
-
-    data/raw/movies/*.json  ->  data/processed/movies_clean.csv
-                            ->  data/processed/column_types.json
-                            ->  reports/cleaning_report.txt
-
-Usage :
-    python src/cleaning/clean_data.py
-
-Règle d'or : on NE fait PAS d'imputation ici (moyenne, médiane...).
-Imputer avant le split train/test provoquerait du Data Leakage.
-Les valeurs manquantes restent NaN et seront traitées dans un Pipeline (Jour 5-6).
-"""
 import io
 import json
 import logging
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 
@@ -28,27 +13,26 @@ CLEAN_CSV = PROCESSED_DIR / "movies_clean.csv"
 COLUMN_TYPES_JSON = PROCESSED_DIR / "column_types.json"
 REPORT_TXT = REPORTS_DIR / "cleaning_report.txt"
 
-LIST_SEP = "|"  # séparateur pour stocker les listes dans le CSV
-MIN_MONEY = 1_000  # budget/revenue en dessous = erreur de saisie TMDB
-MAX_RUNTIME = 300  # au-delà = suspect (signalé, non supprimé)
+LIST_SEP = "|" 
+MIN_MONEY = 1_000  # budget/revenue en dessous 
+MAX_RUNTIME = 300  # 300 minutes est la limite (signalé, non supprimé)
 
-# Typologie des variables (demandé par le sujet)
+# Typologie des variables 
 ID_COLS = ["movie_id"]
 NUMERIC_COLS = ["runtime", "budget", "revenue", "popularity", "vote_average", "vote_count"]
 CATEGORICAL_COLS = ["original_language", "status"]
 TEXT_COLS = ["title", "overview"]
 DATE_COLS = ["release_date"]
-LIST_COLS = ["genres", "keywords"]  # variables multi-valeurs
+LIST_COLS = ["genres", "keywords"]  
 
 logger = logging.getLogger("cleaning")
 
 
-# --------------------------------------------------------------------------
-# 1. Chargement : JSON imbriqués -> DataFrame plat
-# --------------------------------------------------------------------------
+# 1.Lit tous les JSON bruts en df 
+
 def load_raw_movies(raw_dir: Path = RAW_MOVIES_DIR) -> pd.DataFrame:
-    """Lit tous les JSON bruts et aplatit genres et keywords en listes de noms."""
     rows = []
+
     for f in sorted(Path(raw_dir).glob("*.json")):
         try:
             m = json.loads(f.read_text(encoding="utf-8"))
@@ -79,31 +63,32 @@ def load_raw_movies(raw_dir: Path = RAW_MOVIES_DIR) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# --------------------------------------------------------------------------
 # 2. Analyse : types, structure, manquants, doublons, incohérences
-# --------------------------------------------------------------------------
+#NaN, liste vide et chaine," ",  vide comptés comme manquants 
+
 def missing_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """Valeurs manquantes par colonne (liste vide et texte vide comptés comme manquants)."""
     miss = {}
     for col in df.columns:
-        s = df[col]
-        if col in LIST_COLS:
+        s = df[col] 
+
+        if col in LIST_COLS: # []
             miss[col] = int((s.apply(lambda x: len(x) if isinstance(x, list) else 0) == 0).sum())
         elif pd.api.types.is_numeric_dtype(s) or pd.api.types.is_datetime64_any_dtype(s):
             miss[col] = int(s.isna().sum())
-        else:  # texte / catégorielle : NaN ou chaîne vide
+        else:  
             miss[col] = int((s.isna() | (s.astype(str).str.strip() == "")).sum())
     out = pd.DataFrame({"manquants": pd.Series(miss)})
-    out["pourcentage"] = (out["manquants"] / max(len(df), 1) * 100).round(1)
+    out["pourcentage"] = (out["manquants"] / max(len(df), 1) * 100).round(1)  # pour eviter 0
     return out
 
+# Compte les incohérences AVANT correction
 
 def detect_inconsistencies(df: pd.DataFrame) -> dict:
-    """Compte les incohérences AVANT correction (df brut, types non convertis)."""
+
     d = df.copy()
-    dates = pd.to_datetime(d["release_date"], errors="coerce")
+    dates = pd.to_datetime(d["release_date"], errors="coerce") # trsf a Not a Time
     num = {c: pd.to_numeric(d[c], errors="coerce") for c in NUMERIC_COLS}
-    today = pd.Timestamp.today().normalize()
+    today = pd.Timestamp.today().normalize() #garder juste le date 
     return {
         "movie_id dupliqués": int(d["movie_id"].duplicated().sum()),
         "(title, release_date) dupliqués": int(d.duplicated(subset=["title", "release_date"]).sum()),
@@ -121,17 +106,17 @@ def detect_inconsistencies(df: pd.DataFrame) -> dict:
         "status différent de 'Released'": int((d["status"].notna() & (d["status"] != "Released")).sum()),
     }
 
+# Rapport texte 
 
 def analyze(df: pd.DataFrame, title: str) -> str:
-    """Rapport texte : dimensions, types (info), manquants, statistiques."""
     buf = io.StringIO()
-    df.info(buf=buf)
+    df.info(buf=buf)   # ecrris dans buf
     lines = [
         f"=== {title} ===",
         f"Dimensions : {df.shape[0]} lignes x {df.shape[1]} colonnes",
         "",
         "--- Types et structure (df.info) ---",
-        buf.getvalue(),
+        buf.getvalue(), 
         "--- Valeurs manquantes ---",
         missing_summary(df).to_string(),
         "",
@@ -143,27 +128,26 @@ def analyze(df: pd.DataFrame, title: str) -> str:
     return "\n".join(lines)
 
 
-# --------------------------------------------------------------------------
 # 3. Nettoyage
-# --------------------------------------------------------------------------
+
 def clean_movies(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Applique les règles de nettoyage. Retourne (df propre, journal des opérations)."""
+
     log = {}
     df = df.copy()
     n0 = len(df)
 
-    # a) Lignes inutilisables : sans identifiant ou sans titre
+    # a - sans id ou sans titre
     df["title"] = df["title"].astype("string").str.strip()
     df = df[df["movie_id"].notna() & df["title"].notna() & (df["title"] != "")]
     log["lignes sans id/titre supprimées"] = n0 - len(df)
 
-    # b) Doublons : d'abord sur l'identifiant, puis sur (titre, date)
+    # b) Doublons 
     n = len(df)
     df = df.drop_duplicates(subset="movie_id", keep="first")
     log["doublons movie_id supprimés"] = n - len(df)
 
     n = len(df)
-    df = df.sort_values("vote_count", ascending=False)  # garde la version la plus votée
+    df = df.sort_values("vote_count", ascending=False)  
     df = df.drop_duplicates(subset=["title", "release_date"], keep="first")
     log["doublons (title, release_date) supprimés"] = n - len(df)
 
@@ -174,9 +158,10 @@ def clean_movies(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
     df["title"] = df["title"].astype(object)
 
-    # d) Valeurs bidon -> NaN (0 = "inconnu" chez TMDB, pas un vrai zéro)
+    # d) Valeurs bidon -> NaN 
+
     for c in ("budget", "revenue"):
-        mask = df[c] < MIN_MONEY
+        mask = df[c] < MIN_MONEY # t f 
         log[f"{c} mis à NaN (< {MIN_MONEY})"] = int(mask.sum())
         df.loc[mask, c] = np.nan
     mask = df["runtime"] <= 0
@@ -196,7 +181,7 @@ def clean_movies(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     df["original_language"] = df["original_language"].astype("string").str.strip().str.lower().astype(object)
     df["status"] = df["status"].astype("string").str.strip().astype(object)
 
-    # h) Films non sortis : pas de public, donc pas de votes fiables
+    # h) Films non sortis 
     n = len(df)
     df = df[df["status"].isna() | (df["status"] == "Released")]
     log["films non 'Released' supprimés"] = n - len(df)
@@ -209,9 +194,9 @@ def clean_movies(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     log["lignes finales"] = len(df)
     return df, log
 
-
+# Sépare les colonnes en numériques / catégorielles / textuelles / dates / listes
+ 
 def split_variable_types(df: pd.DataFrame) -> dict:
-    """Sépare les colonnes en numériques / catégorielles / textuelles / dates / listes."""
     groups = {
         "id": ID_COLS,
         "numeric": NUMERIC_COLS,
@@ -222,12 +207,10 @@ def split_variable_types(df: pd.DataFrame) -> dict:
     }
     return {k: [c for c in v if c in df.columns] for k, v in groups.items()}
 
-
-# --------------------------------------------------------------------------
 # 4. Sauvegarde / rechargement
-# --------------------------------------------------------------------------
+
 def save_clean(df: pd.DataFrame, path: Path = CLEAN_CSV) -> None:
-    """CSV propre : les listes sont stockées sous forme 'Action|Drama'."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     out = df.copy()
     for c in LIST_COLS:
@@ -239,16 +222,14 @@ def save_clean(df: pd.DataFrame, path: Path = CLEAN_CSV) -> None:
 
 
 def load_clean(path: Path = CLEAN_CSV) -> pd.DataFrame:
-    """Recharge le CSV propre en restaurant dates et listes (utilisé dès le Jour 3)."""
     df = pd.read_csv(path, parse_dates=["release_date"])
     for c in LIST_COLS:
         df[c] = df[c].fillna("").apply(lambda s: [x for x in s.split(LIST_SEP) if x])
     return df
 
 
-# --------------------------------------------------------------------------
 # 5. Orchestration
-# --------------------------------------------------------------------------
+
 def run_cleaning() -> pd.DataFrame:
     raw = load_raw_movies()
     if raw.empty:
