@@ -1,19 +1,14 @@
-"""
-Jour 2 - Requêtes et agrégations MongoDB.
-
-Usage :
-    python src/database/mongo_queries.py
-"""
 import sys
 from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
-from src.database.mongo_loader import get_collection  # noqa: E402
+from src.database.mongo_loader import get_collection  
 
 SHOW = {"_id": 0, "title": 1, "release_date": 1, "vote_average": 1, "vote_count": 1, "popularity": 1}
 
+# les champs a afficher 
 
 def show(title: str, docs) -> None:
     print(f"\n### {title}")
@@ -27,40 +22,37 @@ def show(title: str, docs) -> None:
 
 
 # ------------------------------ Requêtes simples ------------------------------
+
+# les films les plus populaires
+
 def q1_top_popular(col, n=5):
-    """find + sort + limit : les films les plus populaires."""
     return col.find({}, SHOW).sort("popularity", -1).limit(n)
 
-
+# bien notés ET beaucoup votés 
 def q2_acclaimed(col):
-    """Filtre composé ($and implicite) : bien notés ET beaucoup votés."""
     return col.find(
-        {"vote_average": {"$gte": 8.0}, "vote_count": {"$gte": 1000}}, SHOW
-    ).sort("vote_average", -1).limit(5)
+        {"vote_average": {"$gte": 8.0}, "vote_count": {"$gte": 1000}}, SHOW).sort("vote_average", -1).limit(5)
 
 
 def q3_short_comedies(col):
-    """Filtre sur un tableau (genres) + comparaison numérique."""
     return col.find({"genres": "Comedy", "runtime": {"$lt": 90}}, SHOW).sort("popularity", -1).limit(5)
 
+# films sortis depuis 2023 
 
 def q4_recent(col):
-    """Filtre sur une date : films sortis depuis 2023."""
     return col.find({"release_date": {"$gte": datetime(2023, 1, 1)}}, SHOW).sort("vote_count", -1).limit(5)
 
+# all : films qui sont à la fois Action ET Science Fiction
 
 def q5_multi_genre(col):
-    """$all : films qui sont à la fois Action ET Science Fiction."""
     return col.find({"genres": {"$all": ["Action", "Science Fiction"]}}, SHOW).sort("vote_average", -1).limit(5)
 
-
+# maj et min 
 def q6_title_search(col):
-    """Recherche textuelle par expression régulière (insensible à la casse)."""
     return col.find({"title": {"$regex": "star", "$options": "i"}}, SHOW).limit(5)
 
 
 def q7_stats(col):
-    """count_documents et distinct."""
     return [
         {"films_total": col.count_documents({})},
         {"films_avec_budget": col.count_documents({"budget": {"$ne": None}})},
@@ -70,10 +62,9 @@ def q7_stats(col):
 
 # ------------------------------ Agrégations ------------------------------
 def agg_genres(col):
-    """$match -> $unwind -> $group -> $sort -> $project : bilan par genre."""
     pipeline = [
         {"$match": {"vote_count": {"$gte": 50}}},
-        {"$unwind": "$genres"},
+        {"$unwind": "$genres"}, # join unnset
         {"$group": {
             "_id": "$genres",
             "n_films": {"$sum": 1},
@@ -93,7 +84,6 @@ def agg_genres(col):
 
 
 def agg_decades(col):
-    """$match -> $project (calcul de la décennie) -> $group -> $sort."""
     pipeline = [
         {"$match": {"release_date": {"$ne": None}}},
         {"$project": {
@@ -115,9 +105,9 @@ def agg_decades(col):
     ]
     return col.aggregate(pipeline)
 
+# mots-clés les plus fréquents
 
 def agg_keywords(col, n=15):
-    """$unwind -> $group -> $sort -> $limit : mots-clés les plus fréquents."""
     pipeline = [
         {"$unwind": "$keywords"},
         {"$group": {"_id": "$keywords", "n_films": {"$sum": 1}}},
@@ -127,9 +117,9 @@ def agg_keywords(col, n=15):
     ]
     return col.aggregate(pipeline)
 
+# group par langue originale avec note moyenne
 
 def agg_languages(col):
-    """$group par langue originale avec note moyenne."""
     pipeline = [
         {"$group": {"_id": "$original_language", "n_films": {"$sum": 1}, "avg_vote": {"$avg": "$vote_average"}}},
         {"$sort": {"n_films": -1}},
