@@ -1,24 +1,11 @@
 """
-Jour 4 - NLP : nettoyage du texte et TF-IDF sur `overview`.
-
-    data/features/movies_features.csv -> data/features/movies_text.csv       (texte nettoyé)
-                                      -> data/features/tfidf_matrix.npz      (matrice creuse)
-                                      -> data/features/tfidf_movie_ids.csv   (ordre des lignes)
-                                      -> models/tfidf_vectorizer.joblib      (vectoriseur ajusté)
-                                      -> reports/tfidf_report.md, tfidf_experiments.csv
-                                      -> reports/figures/12_, 13_, 14_*.png
-
-Usage :
-    python src/nlp/tfidf.py                       # expériences + vectoriseur final
-    python src/nlp/tfidf.py --skip-experiments    # configuration par défaut (rapide)
-
-DEUX USAGES DU TF-IDF, DEUX RÈGLES
-----------------------------------
-* Clustering / recommandation (non supervisé, pas de cible) : on ajuste le vectoriseur sur tous
-  les films. C'est ce qui est fait ici.
-* Classification (supervisé) : l'IDF est une statistique globale. Pour éviter le Data Leakage,
-  le TfidfVectorizer sera mis DANS le Pipeline (Jour 5) et ajusté sur le train uniquement.
-  Le nettoyage (clean_text) est sans état, ligne par ligne : il peut être fait avant le split.
+tfidf = TfidfVectorizer(
+                       stop_words = "english",  #supprimer les (is,the,and,...)
+                       max_features = 5000 # khali 5000 darorin 
+                       min_df  = 2 (1) # ignorer les mots rare 
+                       max_df = 0.8(1.0) #ignorer les mots trop frequents
+                    sublinear_tf = true # deminuer imapct de mot fi halat repetitions 
+)
 """
 import argparse
 import logging
@@ -55,36 +42,37 @@ NGRAM_GRID = [(1, 1), (1, 2), (1, 3)]
 DEFAULT_MAX_FEATURES, DEFAULT_NGRAM = 5000, (1, 2)
 MIN_DF, MAX_DF = 2, 0.8
 
-# Mots trop génériques pour distinguer deux films + contractions (apostrophes retirées au nettoyage)
 DOMAIN_STOPWORDS = {
     "film", "movie", "story", "dont", "doesnt", "didnt", "isnt", "wasnt", "cant", "couldnt",
     "wouldnt", "shouldnt", "arent", "werent", "hasnt", "havent", "hadnt", "im", "ive",
     "youre", "theyre", "thats", "theres",
 }
+
+# Métadonnées TMDB et noms de genres : redondants avec `genres`, et rendraient l'évaluation circulaire
+DOMAIN_STOPWORDS |= {"duringcreditsstinger", "aftercreditsstinger"}
+DOMAIN_STOPWORDS |= {"action", "adventure", "animation", "comedy", "crime", "documentary", "drama", "fantasy",
+                     "horror", "mystery", "romance", "thriller", "western", "science", "fiction"}
 STOP_WORDS = sorted(set(ENGLISH_STOP_WORDS) | DOMAIN_STOPWORDS)
 
 logger = logging.getLogger("tfidf")
 sns.set_theme(style="whitegrid", context="notebook")
 
 
-# --------------------------------------------------------------------------
-# 1. Nettoyage du texte (sans état : ligne par ligne, aucune fuite possible)
-# --------------------------------------------------------------------------
+# 1. Nettoyage du texte 
+
 def clean_text(text) -> str:
-    """minuscules, sans HTML/URL/chiffres/ponctuation, espaces normalisés. NaN -> ''."""
     if not isinstance(text, str):
         return ""
     t = text.lower()
-    t = re.sub(r"<[^>]+>", " ", t)                    # balises HTML
-    t = re.sub(r"http\S+|www\.\S+", " ", t)           # URL
-    t = re.sub(r"[’']s\b", "", t)                     # possessifs : "man's" -> "man"
-    t = re.sub(r"[’']", "", t)                        # autres apostrophes : "don't" -> "dont"
-    t = re.sub(r"[^a-zà-ÿ\s]", " ", t)                # tout sauf lettres (chiffres inclus)
+    t = re.sub(r"<[^>]+>", " ", t)                   
+    t = re.sub(r"http\S+|www\.\S+", " ", t)           
+    t = re.sub(r"[’']s\b", "", t)                    
+    t = re.sub(r"[’']", "", t)                       
+    t = re.sub(r"[^a-zà-ÿ\s]", " ", t)                
     return re.sub(r"\s+", " ", t).strip()
 
-
+# Valeurs manquantes -> chaîne vide 
 def build_text(df: pd.DataFrame, include_keywords: bool = False) -> pd.Series:
-    """Texte brut d'un film. Valeurs manquantes -> chaîne vide (jamais de NaN dans le vectoriseur)."""
     text = df["overview"].fillna("").astype(str)
     if include_keywords:
         text = text + " " + df["keywords"].apply(lambda k: " ".join(k))
@@ -95,22 +83,21 @@ def clean_series(texts: pd.Series) -> pd.Series:
     return texts.map(clean_text)
 
 
-# --------------------------------------------------------------------------
 # 2. Vectoriseur
-# --------------------------------------------------------------------------
+
 def make_vectorizer(max_features=DEFAULT_MAX_FEATURES, ngram_range=DEFAULT_NGRAM,
                     min_df=MIN_DF, max_df=MAX_DF) -> TfidfVectorizer:
     return TfidfVectorizer(
         stop_words=STOP_WORDS,
         max_features=max_features,
         ngram_range=ngram_range,
-        min_df=min_df,      # ignore les termes présents dans moins de 2 films (fautes, noms rares)
-        max_df=max_df,      # ignore les termes présents dans plus de 80 % des films
-        lowercase=False,    # déjà fait par clean_text
-        norm="l2",          # vecteurs de norme 1 : produit scalaire = similarité cosinus
+        min_df=min_df,         
+        max_df=max_df,      
+        lowercase=False,      # déjà fait 
+        norm="l2",         
     )
 
-
+ 
 def matrix_stats(X: sp.csr_matrix) -> dict:
     n, v = X.shape
     return {
@@ -123,23 +110,18 @@ def matrix_stats(X: sp.csr_matrix) -> dict:
     }
 
 
-# --------------------------------------------------------------------------
-# 3. Évaluation sans étiquette : cohérence des genres des voisins
-# --------------------------------------------------------------------------
+# 3. 1.0 : les deux films les mêmes , 0.0 : aucun genre en commun. Entre 0.0 et 1.0 : ils partagent une parti
+
 def _jaccard(a: set, b: set) -> float:
     u = len(a | b)
     return len(a & b) / u if u else 0.0
 
 
 def genre_coherence(X, genres: list, k: int = 5) -> float:
-    """
-    Pour chaque film, prend ses k voisins les plus proches (cosinus) et mesure le
-    chevauchement de genres (Jaccard). Plus c'est haut, plus le TF-IDF capte du sens.
-    Les genres ne servent qu'à ÉVALUER, jamais comme entrée : pas de leakage.
-    """
+   
     sets = [set(g) for g in genres]
-    sim = linear_kernel(X)                      # X est normalisé L2 : produit scalaire = cosinus
-    np.fill_diagonal(sim, -1.0)                 # un film n'est pas son propre voisin
+    sim = linear_kernel(X)                      
+    np.fill_diagonal(sim, -1.0)                 
     has_vec = np.asarray(X.getnnz(axis=1) > 0).ravel()
     k = min(k, X.shape[0] - 1)
     top = np.argpartition(-sim, k - 1, axis=1)[:, :k]
@@ -150,19 +132,8 @@ def genre_coherence(X, genres: list, k: int = 5) -> float:
     ]
     return float(np.mean(scores)) if scores else 0.0
 
-
-def random_baseline(genres: list, n_pairs: int = 20000, seed: int = 42) -> float:
-    """Chevauchement moyen de genres entre deux films tirés au hasard (point de comparaison)."""
-    rng = np.random.default_rng(seed)
-    sets = [set(g) for g in genres]
-    i = rng.integers(0, len(sets), n_pairs)
-    j = rng.integers(0, len(sets), n_pairs)
-    return float(np.mean([_jaccard(sets[a], sets[b]) for a, b in zip(i, j) if a != b]))
-
-
-# --------------------------------------------------------------------------
 # 4. Expériences max_features x ngram_range
-# --------------------------------------------------------------------------
+
 def run_experiments(clean_texts, genres, max_features_grid=MAX_FEATURES_GRID,
                     ngram_grid=NGRAM_GRID, min_df=MIN_DF, max_df=MAX_DF) -> pd.DataFrame:
     rows = []
@@ -182,21 +153,19 @@ def run_experiments(clean_texts, genres, max_features_grid=MAX_FEATURES_GRID,
             logger.info("max_features=%s ngram=%s -> %d termes, cohérence %.4f",
                         mf, ng, st["vocab_size"], rows[-1]["genre_coherence"])
     df = pd.DataFrame(rows)
-    df["max_features"] = df["max_features"].astype("Int64")  # None -> <NA>
+    df["max_features"] = df["max_features"].astype("Int64")  
     return df
 
 
 def select_best(exp: pd.DataFrame, tolerance: float = 0.005):
-    """Meilleure cohérence ; à égalité (± tolérance) on préfère le plus petit vocabulaire."""
     ok = exp[exp["genre_coherence"] >= exp["genre_coherence"].max() - tolerance]
     row = ok.sort_values(["vocab_size", "ngram_max"]).iloc[0]
     mf = None if pd.isna(row["max_features"]) else int(row["max_features"])
     return mf, (int(row["ngram_min"]), int(row["ngram_max"]))
 
 
-# --------------------------------------------------------------------------
 # 5. Termes représentatifs
-# --------------------------------------------------------------------------
+
 def top_terms_global(vec, X, n: int = 20) -> pd.Series:
     means = np.asarray(X.mean(axis=0)).ravel()
     terms = vec.get_feature_names_out()
@@ -205,13 +174,12 @@ def top_terms_global(vec, X, n: int = 20) -> pd.Series:
 
 
 def top_terms_by_genre(vec, X, genres: list, genre_names: list, n: int = 8, min_docs: int = 5) -> dict:
-    """Termes les plus CARACTÉRISTIQUES d'un genre : moyenne dans le genre moins moyenne globale."""
     terms = vec.get_feature_names_out()
     glob = np.asarray(X.mean(axis=0)).ravel()
     out = {}
     for g in genre_names:
         mask = np.array([g in lst for lst in genres])
-        if mask.sum() < min_docs:  # genre trop rare pour être représentatif
+        if mask.sum() < min_docs: 
             continue
         diff = np.asarray(X[mask].mean(axis=0)).ravel() - glob
         out[g] = list(terms[diff.argsort()[::-1][:n]])
@@ -281,128 +249,54 @@ def plot_terms_by_genre(by_genre: dict, show: bool = False) -> None:
     _finish(fig, "14_tfidf_terms_by_genre", show)
 
 
-# --------------------------------------------------------------------------
-# 7. Rapport
-# --------------------------------------------------------------------------
-def md_table(df: pd.DataFrame) -> str:
-    cols = list(df.columns)
-    lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
-    for _, r in df.iterrows():
-        lines.append("| " + " | ".join("" if pd.isna(v) else str(v) for v in r) + " |")
-    return "\n".join(lines)
-
-
-def _effect(delta: float) -> str:
-    if delta > 0.003:
-        return "améliore"
-    if delta < -0.003:
-        return "dégrade"
-    return "ne change pratiquement pas"
-
-
-def write_report(info: dict) -> None:
-    exp = info.get("experiments")
-    L = ["# Rapport TF-IDF (Jour 4)", "",
-         "## 1. Qualité du texte", "",
-         f"- Films : {info['n_docs']}",
-         f"- Synopsis vides ou sans mot exploitable après nettoyage : {info['n_empty']} ({info['n_empty'] / info['n_docs'] * 100:.1f} %)",
-         f"- Longueur médiane avant nettoyage : {info['words_raw_median']:.0f} mots ; après nettoyage et retrait des mots vides : {info['words_clean_median']:.0f} mots",
-         f"- Synopsis très courts (moins de 10 mots nettoyés) : {info['n_short']}", ""]
-    if exp is not None:
-        base = info["baseline"]
-        L += ["## 2. Expériences max_features x ngram_range", "",
-              f"min_df={MIN_DF}, max_df={MAX_DF}. La cohérence mesure le chevauchement de genres (Jaccard) entre un film et ses "
-              f"5 voisins ; le hasard donne {base:.3f}.", "",
-              md_table(exp), ""]
-        by_ng = exp.groupby("ngram_max")["genre_coherence"].mean()
-        mf_num = exp.dropna(subset=["max_features"])
-        by_mf = mf_num.groupby("max_features")["genre_coherence"].mean()
-        L += ["**Lecture :**",
-              f"- Unigrammes -> bigrammes : {_effect(by_ng.get(2, np.nan) - by_ng.get(1, np.nan))} la cohérence "
-              f"({by_ng.get(1, float('nan')):.3f} -> {by_ng.get(2, float('nan')):.3f} en moyenne sur les max_features).",
-              f"- Bigrammes -> trigrammes : {_effect(by_ng.get(3, np.nan) - by_ng.get(2, np.nan))} la cohérence "
-              f"({by_ng.get(2, float('nan')):.3f} -> {by_ng.get(3, float('nan')):.3f}).",
-              f"- max_features de {int(by_mf.index.min())} à {int(by_mf.index.max())} : {_effect(by_mf.iloc[-1] - by_mf.iloc[0])} "
-              f"la cohérence ({by_mf.iloc[0]:.3f} -> {by_mf.iloc[-1]:.3f}), au prix d'une matrice plus grande et d'un calcul plus long.", ""]
-    st = info["stats"]
-    mf, ng = info["config"]
-    L += ["## 3. Configuration retenue et matrice finale", "",
-          f"- `max_features={mf}`, `ngram_range={ng}`, `min_df={MIN_DF}`, `max_df={MAX_DF}`, `norm='l2'`",
-          f"- Dimensions : **{st['n_docs']} films x {st['vocab_size']} termes**",
-          f"- Valeurs non nulles : {st['nnz']} -> matrice creuse à **{st['sparsity_pct']} %** de zéros",
-          f"- En moyenne {st['nnz_per_doc']} termes actifs par film sur {st['vocab_size']}",
-          f"- Mémoire (format creux) : {st['size_mb']} Mo ; en format dense elle ferait environ "
-          f"{st['n_docs'] * st['vocab_size'] * 8 / 1e6:.0f} Mo",
-          f"- Vocabulaire : {info['n_uni']} unigrammes et {info['n_bi']} n-grammes de plus d'un mot",
-          f"- Cohérence des genres : {info['coherence']:.3f} (hasard : {info['baseline']:.3f}, soit x{info['coherence'] / max(info['baseline'], 1e-9):.1f})", "",
-          "## 4. Termes représentatifs", "",
-          "### Les plus élevés en moyenne", "", ", ".join(f"`{t}`" for t in info["top_global"].index[:20]), "",
-          "### Les plus caractéristiques par genre (écart à la moyenne globale)", ""]
-    L += [f"- **{g}** : {', '.join(t)}" for g, t in info["by_genre"].items()]
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    REPORT_MD.write_text("\n".join(L) + "\n", encoding="utf-8")
-
-
-# --------------------------------------------------------------------------
 # 8. Orchestration
-# --------------------------------------------------------------------------
-def run_tfidf(skip_experiments: bool = False, df: pd.DataFrame | None = None, show: bool = False) -> dict:
+
+def run_tfidf(skip_experiments: bool = False, df: pd.DataFrame | None = None, show: bool = False,
+              include_keywords: bool = False) -> dict:
     df = load_features() if df is None else df
-    raw = build_text(df)
-    clean = clean_series(raw)
     genres = df["genres"].tolist()
+    for folder in (REPORTS_DIR, MODELS_DIR, FEATURES_DIR):
+        folder.mkdir(parents=True, exist_ok=True)
 
-    # -- Qualité du texte
-    tokens_clean = clean.str.split().str.len().fillna(0)
-    info = {
-        "n_docs": len(df),
-        "n_empty": int((clean == "").sum()),
-        "words_raw_median": float(raw.str.split().str.len().median()),
-        "words_clean_median": float(tokens_clean.median()),
-        "n_short": int((tokens_clean < 10).sum()),
-        "baseline": random_baseline(genres),
-    }
+    # 1. Texte : valeurs manquantes -> "" 
 
-    # -- Expériences
+    clean_overview = clean_series(build_text(df))
+    clean = clean_series(build_text(df, include_keywords)) if include_keywords else clean_overview
+    logger.info("Synopsis vides après nettoyage : %d", (clean_overview == "").sum())
+
+    # 2. Configuration : meilleure combinaison max_features x ngram_range
+
     if skip_experiments:
         config = (DEFAULT_MAX_FEATURES, DEFAULT_NGRAM)
-        info["experiments"] = None
     else:
         exp = run_experiments(clean, genres)
-        REPORTS_DIR.mkdir(parents=True, exist_ok=True)
         exp.to_csv(EXPERIMENTS_CSV, index=False)
         plot_experiments(exp, show)
-        info["experiments"] = exp
         config = select_best(exp)
-    info["config"] = config
 
-    # -- Vectoriseur final
+    # 3. Vectoriseur final et analyse de la matrice
     vec = make_vectorizer(*config)
     X = vec.fit_transform(clean).tocsr()
-    terms = vec.get_feature_names_out()
-    info["stats"] = matrix_stats(X)
-    info["n_bi"] = int(sum(" " in t for t in terms))
-    info["n_uni"] = len(terms) - info["n_bi"]
-    info["coherence"] = genre_coherence(X, genres)
-    info["top_global"] = top_terms_global(vec, X, 20)
     top_genres = pd.Series([g for lst in genres for g in lst]).value_counts().head(6).index.tolist()
-    info["by_genre"] = top_terms_by_genre(vec, X, genres, top_genres)
+    info = {
+        "config": config, "stats": matrix_stats(X),
+        "coherence": genre_coherence(X, genres), 
+        "top_global": top_terms_global(vec, X, 20),
+        "by_genre": top_terms_by_genre(vec, X, genres, top_genres),
+        "vectorizer": vec, "X": X, "clean": clean,
+    }
     plot_top_terms(info["top_global"], show)
     plot_terms_by_genre(info["by_genre"], show)
 
-    # -- Sauvegardes
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    FEATURES_DIR.mkdir(parents=True, exist_ok=True)
+    # 4. Sauvegardes
     joblib.dump(vec, VECTORIZER_PATH, compress=3)
     sp.save_npz(MATRIX_PATH, X)
     df[["movie_id"]].to_csv(IDS_PATH, index=False)
     pd.DataFrame({
-        "movie_id": df["movie_id"], "title": df["title"],
-        "overview_clean": clean, "n_tokens": tokens_clean.astype(int),
+        "movie_id": df["movie_id"], "title": df["title"], "overview_clean": clean_overview,
+        "n_tokens": clean_overview.str.split().str.len().fillna(0).astype(int),
         "has_text": (X.getnnz(axis=1) > 0).astype(int),
     }).to_csv(TEXT_CSV, index=False, encoding="utf-8")
-    write_report(info)
-    info["vectorizer"], info["X"], info["clean"] = vec, X, clean
     return info
 
 
@@ -414,13 +308,13 @@ def print_summary(info: dict) -> None:
     print("Top termes :", ", ".join(info["top_global"].index[:10]))
     for g, t in info["by_genre"].items():
         print(f"  {g:16s}: {', '.join(t)}")
-    print(f"\nRapport : {REPORT_MD}\nVectoriseur : {VECTORIZER_PATH}\nMatrice : {MATRIX_PATH}")
-
+    print(f"\nVectoriseur : {VECTORIZER_PATH}\nMatrice : {MATRIX_PATH}")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     plt.switch_backend("Agg")
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-experiments", action="store_true")
+    ap.add_argument("--keywords", action="store_true", help="vectoriser synopsis + mots-clés TMDB")
     args = ap.parse_args()
-    print_summary(run_tfidf(skip_experiments=args.skip_experiments))
+    print_summary(run_tfidf(skip_experiments=args.skip_experiments, include_keywords=args.keywords))
