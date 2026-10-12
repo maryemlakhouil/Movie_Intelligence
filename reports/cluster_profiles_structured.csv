@@ -1,0 +1,4 @@
+cluster,films,annee,duree,budget,note,votes,nb_genres,pct_fort_engagement,top_genres
+0,422,1996.0,113.0,15000000.0,7.5,5756.5,2.3,69.0,"Drama, Thriller, Comedy"
+1,564,2024.0,100.0,20000000.0,6.4,720.0,2.3,8.2,"Thriller, Comedy, Horror"
+2,1014,2015.5,118.0,90000000.0,7.0,5781.0,3.2,67.8,"Action, Adventure, Comedy"
