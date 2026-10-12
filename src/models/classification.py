@@ -1,6 +1,5 @@
 """
-ROC-AUC    est un score de 0,5 (hasard) à 1 (parfait) 
-           qui indique à quel point le modèle classe correctement 
+ROC-AUC    est un score de 0,5 (hasard) à 1 (parfait) qui indique à quel point le modèle classe correctement 
 
 RÈGLES ANTI-LEAKAGE
 -------------------
@@ -121,7 +120,7 @@ def build_pipeline(model, groups: dict) -> Pipeline:
 def get_scores(pipe, X) -> np.ndarray:
     if hasattr(pipe, "predict_proba"):
         return pipe.predict_proba(X)[:, 1]
-    return pipe.decision_function(X) #svm(+c1 -c0)
+    return pipe.decision_function(X) 
 
 
 def evaluate(pipe, X, y) -> dict:
