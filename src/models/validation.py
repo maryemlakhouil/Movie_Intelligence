@@ -1,6 +1,4 @@
-"""
-Jour 6 - Validation croisée (StratifiedKFold + cross_validate) et optimisation (GridSearchCV).
-"""
+
 import argparse
 import json
 import sys
