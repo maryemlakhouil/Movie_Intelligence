@@ -1,25 +1,3 @@
-"""
-Jour 3 - Feature Engineering.
-
-    data/processed/movies_clean.csv  ->  data/features/movies_features.csv
-                                     ->  data/features/feature_groups.json
-                                     ->  reports/feature_justifications.md
-
-Usage :
-    python src/features/build_features.py
-
-PRINCIPE ANTI-LEAKAGE
----------------------
-1. Toutes les features créées ici sont calculées LIGNE PAR LIGNE (année, nombre de genres,
-   log du budget...). Aucune ne dépend de statistiques globales du jeu de données
-   (moyenne, quantiles, encodage par la cible) : pas de fuite entre train et test.
-   -> C'est pourquoi les catégories de durée utilisent des seuils FIXES (90/120/150 min)
-      et non des quantiles.
-2. Les variables qui mesurent l'engagement du public (vote_count, vote_average, popularity)
-   et le succès commercial (revenue) sont CONSERVÉES dans le fichier (utiles pour l'EDA et
-   pour créer la cible) mais listées dans "leakage_risk" : elles ne seront pas des features.
-3. Aucune imputation ici : elle sera faite dans un Pipeline, ajustée sur le train seul.
-"""
 import json
 import logging
 import sys
@@ -36,16 +14,16 @@ FEATURES_DIR = PROJECT_ROOT / "data" / "features"
 FEATURES_CSV = FEATURES_DIR / "movies_features.csv"
 GROUPS_JSON = FEATURES_DIR / "feature_groups.json"
 JUSTIF_MD = PROJECT_ROOT / "reports" / "feature_justifications.md"
-
-RUNTIME_BINS = [0, 90, 120, 150, np.inf]          # seuils fixes (pas de quantiles)
+#categorie de durree 
+RUNTIME_BINS = [0, 90, 120, 150, np.inf]          
 RUNTIME_LABELS = ["court", "moyen", "long", "tres_long"]
 
 logger = logging.getLogger("features")
 
 # nom de la feature -> (groupe, justification)
 FEATURE_JUSTIFICATIONS = {
-    "release_year": ("numeric", "Époque de sortie : les goûts et le volume de films varient avec les années."),
-    "month_sin": ("numeric", "Mois encodé de façon cyclique (décembre est proche de janvier)."),
+    "release_year": ("numeric", "Époque de sortie "),
+    "month_sin": ("numeric", "décembre est proche de janvier."),
     "month_cos": ("numeric", "Seconde composante du mois cyclique (sin et cos sont nécessaires ensemble)."),
     "n_genres": ("numeric", "Un film multi-genres touche un public plus large."),
     "n_keywords": ("numeric", "Richesse de l'indexation : indicateur de la notoriété du film sur TMDB."),
@@ -72,13 +50,12 @@ LEAKAGE_RISK = {
     "revenue": "Conséquence du succès du film, connue seulement après la sortie.",
 }
 
-
+# transformer un texte en une chaîne propre
 def slugify(name: str) -> str:
     return "".join(ch if ch.isalnum() else "_" for ch in name).strip("_")
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Ajoute les variables dérivées. Aucune statistique globale n'est utilisée."""
     out = df.copy()
 
     # --- Dates -------------------------------------------------------------
@@ -93,7 +70,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     # --- Comptages ---------------------------------------------------------
     out["n_genres"] = out["genres"].apply(len)
     out["n_keywords"] = out["keywords"].apply(len)
-
+    
     # --- Durée -------------------------------------------------------------
     out["runtime_category"] = pd.cut(
         out["runtime"], bins=RUNTIME_BINS, labels=RUNTIME_LABELS, right=False
@@ -121,7 +98,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def feature_groups(df: pd.DataFrame) -> dict:
-    """Regroupe les colonnes pour le ColumnTransformer (Jour 5)."""
     genre_cols = sorted(c for c in df.columns if c.startswith("genre_"))
     groups = {"numeric": [], "binary": [], "categorical": [], "descriptive_only": []}
     for name, (grp, _) in FEATURE_JUSTIFICATIONS.items():

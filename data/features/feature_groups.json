@@ -1,6 +1,6 @@
 {
   "numeric": [
-    "release_year", 
+    "release_year",
     "month_sin",
     "month_cos",
     "n_genres",
@@ -9,7 +9,7 @@
     "budget_log",
     "overview_word_count",
     "overview_char_len",
-    "title_word_count" 
+    "title_word_count"
   ],
   "binary": [
     "has_budget",
@@ -42,7 +42,7 @@
   "descriptive_only": [
     "release_month",
     "release_quarter",
-    "release_decade" 
+    "release_decade"
   ],
   "text": [
     "overview"
