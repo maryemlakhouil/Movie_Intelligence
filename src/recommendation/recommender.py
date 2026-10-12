@@ -12,9 +12,9 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.features.build_features import load_features  
 from src.nlp.tfidf import IDS_PATH, MATRIX_PATH, VECTORIZER_PATH, genre_coherence, random_baseline, transform_query  
 
+# df : une ligne par film ; X : matrice TF-IDF 
 
 class Recommender:
-    """df : une ligne par film ; X : matrice TF-IDF (mêmes lignes, même ordre)."""
 
     def __init__(self, df: pd.DataFrame, X):
         self.df = df.reset_index(drop=True)
@@ -27,9 +27,10 @@ class Recommender:
         if not (pd.read_csv(IDS_PATH)["movie_id"].values == df["movie_id"].values).all():
             raise SystemExit("Matrice TF-IDF non alignée sur les films : relancer src/nlp/tfidf.py")
         return cls(df, X)
+    
+    # Indice du film : titre exact, sinon titre contenant le texte.
 
     def find_movie(self, query: str) -> int:
-        """Indice du film : titre exact, sinon titre contenant le texte. En cas d'homonymes : le plus voté."""
         titles, q = self.df["title"].astype(str).str.lower(), query.strip().lower()
         hits = self.df.index[titles == q]
         if len(hits) == 0:
@@ -41,7 +42,7 @@ class Recommender:
     def _top(self, scores: np.ndarray, n: int, exclude: int | None = None) -> pd.DataFrame:
         scores = scores.copy()
         if exclude is not None:
-            scores[exclude] = -1                      # un film ne se recommande pas lui-même
+            scores[exclude] = -1                      
         idx = np.argsort(-scores)[:n]
         d = self.df.loc[idx]
         return pd.DataFrame({
@@ -50,8 +51,9 @@ class Recommender:
             "year": d["release_year"].astype("Int64").values,
             "similarity": scores[idx].round(3),
         })
+    # Les n films les plus proches (cosinus) du film situé à la ligne i
+
     def recommend_by_index(self, i: int, n: int = 5) -> pd.DataFrame:
-        """Les n films les plus proches (cosinus) du film situé à la ligne i."""
         if self.X[i].nnz == 0:
             raise ValueError("Ce film n'a pas de synopsis exploitable.")
         return self._top(cosine_similarity(self.X[i], self.X).ravel(), n, exclude=i)
@@ -59,13 +61,6 @@ class Recommender:
     def recommend(self, title: str, n: int = 5) -> pd.DataFrame:
         return self.recommend_by_index(self.find_movie(title), n)
     
-    def recommend_from_text(self, text: str, vectorizer, n: int = 5) -> pd.DataFrame:
-        """Bonus : recommandations à partir d'une description libre."""
-        q = transform_query(vectorizer, text)
-        if q.nnz == 0:
-            raise ValueError("Aucun mot connu dans ce texte.")
-        return self._top(cosine_similarity(q, self.X).ravel(), n)
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
