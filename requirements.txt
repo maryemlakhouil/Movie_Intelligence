@@ -8,3 +8,4 @@ pymongo
 pytest
 scipy
 scikit-learn
+streamlit

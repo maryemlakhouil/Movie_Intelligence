@@ -132,6 +132,13 @@ def genre_coherence(X, genres: list, k: int = 5) -> float:
     ]
     return float(np.mean(scores)) if scores else 0.0
 
+def random_baseline(genres: list, n_pairs: int = 20000, seed: int = 42) -> float:
+    rng = np.random.default_rng(seed)
+    sets = [set(g) for g in genres]
+    i = rng.integers(0, len(sets), n_pairs)
+    j = rng.integers(0, len(sets), n_pairs)
+    return float(np.mean([_jaccard(sets[a], sets[b]) for a, b in zip(i, j) if a != b]))
+
 # 4. Expériences max_features x ngram_range
 
 def run_experiments(clean_texts, genres, max_features_grid=MAX_FEATURES_GRID,
@@ -265,7 +272,6 @@ def run_tfidf(skip_experiments: bool = False, df: pd.DataFrame | None = None, sh
     logger.info("Synopsis vides après nettoyage : %d", (clean_overview == "").sum())
 
     # 2. Configuration : meilleure combinaison max_features x ngram_range
-
     if skip_experiments:
         config = (DEFAULT_MAX_FEATURES, DEFAULT_NGRAM)
     else:
@@ -280,7 +286,7 @@ def run_tfidf(skip_experiments: bool = False, df: pd.DataFrame | None = None, sh
     top_genres = pd.Series([g for lst in genres for g in lst]).value_counts().head(6).index.tolist()
     info = {
         "config": config, "stats": matrix_stats(X),
-        "coherence": genre_coherence(X, genres), 
+        "coherence": genre_coherence(X, genres), "baseline": random_baseline(genres),
         "top_global": top_terms_global(vec, X, 20),
         "by_genre": top_terms_by_genre(vec, X, genres, top_genres),
         "vectorizer": vec, "X": X, "clean": clean,

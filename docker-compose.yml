@@ -1,4 +1,3 @@
-# Jour 2 : uniquement MongoDB. On ajoutera l'app, Airflow, etc. au Jour 9.
 services:
   mongo:
     image: docker.io/library/mongo:7
@@ -8,6 +7,42 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+
+  airflow:
+    build: .
+    image: movie-recommender-airflow:latest
+    container_name: movie_airflow
+    user: "${AIRFLOW_UID:-50000}:0"         
+    command: standalone                      
+    depends_on:
+      - mongo
+    ports:
+      - "127.0.0.1:8080:8080"                 
+    env_file: .env                           
+    environment:
+      MONGO_URI: mongodb://mongo:27017       
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/airflow/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"   
+    volumes:
+      - .:/opt/project:z                     
+
+  streamlit:
+    build: .
+    image: movie-recommender-airflow:latest  
+    container_name: movie_streamlit
+    user: "${AIRFLOW_UID:-50000}:0"
+    working_dir: /opt/project
+    # l'entrypoint de l'image accepte une commande qui commence par "python"
+    command: ["python", "-m", "streamlit", "run", "app/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      STREAMLIT_SERVER_HEADLESS: "true"
+      STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+      CONNECTION_CHECK_MAX_COUNT: "0"         
+    volumes:
+      - .:/opt/project:z
 
 volumes:
   mongo_data:

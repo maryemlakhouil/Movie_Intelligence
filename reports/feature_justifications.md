@@ -2,8 +2,8 @@
 
 | Variable | Groupe | Justification |
 |---|---|---|
-| `release_year` | numeric | Époque de sortie : les goûts et le volume de films varient avec les années. |
-| `month_sin` | numeric | Mois encodé de façon cyclique (décembre est proche de janvier). |
+| `release_year` | numeric | Époque de sortie  |
+| `month_sin` | numeric | décembre est proche de janvier. |
 | `month_cos` | numeric | Seconde composante du mois cyclique (sin et cos sont nécessaires ensemble). |
 | `n_genres` | numeric | Un film multi-genres touche un public plus large. |
 | `n_keywords` | numeric | Richesse de l'indexation : indicateur de la notoriété du film sur TMDB. |
